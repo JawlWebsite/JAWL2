@@ -57,20 +57,19 @@
     // ==========================================
     const GITHUB_USERNAME = "JawlWebsite"; 
     
-    // רשימת הריפואים (החשבונות)
+    // רשימת הריפואים והאייקונים המעודכנים
     const REPOSITORIES = [
-        { name: "ShantupaiJawl", icon: "👤", displayName: "חשבון Shantupai" },
-        { name: "AvishaiJawL", icon: "⭐", displayName: "חשבון Avishai" }
+        { name: "ShantupaiJawl", icon: "👕", displayName: "חשבון Shantupai" },
+        { name: "AvishaiJawL", icon: "🛍️", displayName: "חשבון Avishai" }
     ];
     
-    // ערכי אנרגיה בג'אולים - תוכל לשנות כאן אם תרצה ערכים אחרים
+    // ערכי אנרגיה בג'אולים
     const ENERGY_VALUES = {
         'מייבש': 15000000, 
         'שקית': 2000000    
     };
     // ==========================================
 
-    // פונקציות לתצוגה
     function initHome() {
         const homeView = document.getElementById('home-view');
         homeView.innerHTML = '';
@@ -88,7 +87,6 @@
         document.getElementById('home-view').style.display = 'flex';
     }
 
-    // פונקציה מרכזית לטעינת נתונים מריפו ספציפי
     async function loadAccount(repoName, displayName) {
         document.getElementById('home-view').style.display = 'none';
         document.getElementById('loader').style.display = 'block';
@@ -104,7 +102,6 @@
         let transfersData = {}; 
 
         try {
-            // שליפת כל האישיוז בריפו
             const issuesRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${repoName}/issues`);
             if (!issuesRes.ok) throw new Error('שגיאה בשליפת Issues');
             const issues = await issuesRes.json();
@@ -116,16 +113,22 @@
                     
                     comments.forEach(comment => {
                         const body = comment.body;
-                        const imgMatch = body.match(/!\[.*?\]\((.*?)\)/); // חיפוש תמונה במארקדאון
+                        const imgMatch = body.match(/!\[.*?\]\((.*?)\)/); 
                         
-                        // חישוב אנרגיה
+                        // זיהוי הפעולה מתוך הטקסט בתגובה וחישוב האנרגיה
                         let actionTaken = '';
-                        if (body.includes('מייבש')) { totalJoules += ENERGY_VALUES['מייבש']; actionTaken = 'תליית בגדים'; }
-                        if (body.includes('שקית')) { totalJoules += ENERGY_VALUES['שקית']; actionTaken = 'שקית רב פעמית'; }
+                        if (body.includes('מייבש')) { 
+                            totalJoules += ENERGY_VALUES['מייבש']; 
+                            actionTaken = 'תליית בגדים במקום מייבש'; 
+                        }
+                        if (body.includes('שקית')) { 
+                            totalJoules += ENERGY_VALUES['שקית']; 
+                            actionTaken = 'שימוש בשקית רב פעמית'; 
+                        }
 
                         if (imgMatch) {
                             actionsHtml += `<div style="margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid #eee;">
-                                <strong>${actionTaken || 'פעולה ללא זיהוי'}</strong><br>
+                                <strong>${actionTaken || 'פעולה ללא מילת מפתח (לא חושבה אנרגיה)'}</strong><br>
                                 <img src="${imgMatch[1]}" alt="Action Image" style="margin-top:10px;">
                             </div>`;
                         }
@@ -138,7 +141,7 @@
                     comments.forEach(comment => {
                         const body = comment.body;
                         const imgMatch = body.match(/!\[.*?\]\((.*?)\)/);
-                        const nameMatch = body.match(/שם:\s*([א-תA-Za-z\s]+)/); // תומך בשמות בעברית ואנגלית
+                        const nameMatch = body.match(/שם:\s*([א-תA-Za-z\s]+)/); 
                         
                         const personName = nameMatch ? nameMatch[1].trim() : 'אנונימי';
                         const imgSrc = imgMatch ? imgMatch[1] : null;
@@ -154,7 +157,6 @@
                 }
             }
 
-            // רינדור התוצאות ל-HTML
             document.getElementById('total-joules').innerText = totalJoules.toLocaleString();
             document.getElementById('actions-content').innerHTML = actionsHtml || '<p>אין עדיין פעולות בחשבון זה.</p>';
             
@@ -182,7 +184,6 @@
         }
     }
 
-    // הפעלת האתר
     initHome();
 </script>
 
