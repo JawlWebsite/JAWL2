@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת מעקב Jawl</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        /* תצוגת בית (סמלים) */
+        #home-view { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .repo-icon { cursor: pointer; text-align: center; padding: 20px; background: #e9ecef; border-radius: 15px; transition: transform 0.2s; width: 150px; }
+        .repo-icon:hover { transform: scale(1.05); background: #dee2e6; }
+        .repo-icon span { display: block; font-size: 3rem; margin-bottom: 10px; }
+        /* תצוגת חשבון */
+        #account-view { display: none; }
+        .back-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; font-size: 1rem; }
+        .energy-total { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; text-align: center; font-size: 1.5rem; margin-bottom: 20px; font-weight: bold; }
+        .columns { display: flex; gap: 20px; }
+        .column { flex: 1; background: #f8f9fa; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; }
+        .column h2 { margin-top: 0; border-bottom: 2px solid #ccc; padding-bottom: 5px; }
+        img { max-width: 100%; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ccc; }
+        .transfer-group { margin-bottom: 20px; padding: 10px; background: white; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .transfer-group h3 { margin: 0 0 10px 0; color: #0056b3; }
+        .loader { text-align: center; font-size: 1.2rem; color: #666; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="home-view">
+        </div>
+
+    <div id="loader" class="loader">טוען נתונים מ-GitHub...</div>
+
+    <div id="account-view">
+        <button class="back-btn" onclick="showHome()">חזור לרשימת החשבונות</button>
+        <h1 id="repo-title"></h1>
+        <div class="energy-total">סך אנרגיה שנחסכה: <span id="total-joules">0</span> ג'אול</div>
+        
+        <div class="columns">
+            <div class="column" id="actions-col">
+                <h2>פעולות שחסכו אנרגיה (Jawl Actions)</h2>
+                <div id="actions-content"></div>
+            </div>
+            <div class="column" id="transfers-col">
+                <h2>פעולות מיטיבות (Jawl Transfers)</h2>
+                <div id="transfers-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // הגדרות המערכת
+    // ==========================================
+    const GITHUB_USERNAME = "JawlWebsite"; 
+    
+    // רשימת הריפואים (החשבונות)
+    const REPOSITORIES = [
+        { name: "ShantupaiJawl", icon: "👤", displayName: "חשבון Shantupai" },
+        { name: "AvishaiJawL", icon: "⭐", displayName: "חשבון Avishai" }
+    ];
+    
+    // ערכי אנרגיה בג'אולים - תוכל לשנות כאן אם תרצה ערכים אחרים
+    const ENERGY_VALUES = {
+        'מייבש': 15000000, 
+        'שקית': 2000000    
+    };
+    // ==========================================
+
+    // פונקציות לתצוגה
+    function initHome() {
+        const homeView = document.getElementById('home-view');
+        homeView.innerHTML = '';
+        REPOSITORIES.forEach(repo => {
+            const div = document.createElement('div');
+            div.className = 'repo-icon';
+            div.onclick = () => loadAccount(repo.name, repo.displayName);
+            div.innerHTML = `<span>${repo.icon}</span><strong>${repo.displayName}</strong>`;
+            homeView.appendChild(div);
+        });
+    }
+
+    function showHome() {
+        document.getElementById('account-view').style.display = 'none';
+        document.getElementById('home-view').style.display = 'flex';
+    }
+
+    // פונקציה מרכזית לטעינת נתונים מריפו ספציפי
+    async function loadAccount(repoName, displayName) {
+        document.getElementById('home-view').style.display = 'none';
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('account-view').style.display = 'none';
+        
+        document.getElementById('repo-title').innerText = displayName;
+        document.getElementById('actions-content').innerHTML = '';
+        document.getElementById('transfers-content').innerHTML = '';
+        document.getElementById('total-joules').innerText = '0';
+
+        let totalJoules = 0;
+        let actionsHtml = '';
+        let transfersData = {}; 
+
+        try {
+            // שליפת כל האישיוז בריפו
+            const issuesRes = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${repoName}/issues`);
+            if (!issuesRes.ok) throw new Error('שגיאה בשליפת Issues');
+            const issues = await issuesRes.json();
+
+            for (const issue of issues) {
+                if (issue.title.toLowerCase() === 'jawl actions') {
+                    const commentsRes = await fetch(issue.comments_url);
+                    const comments = await commentsRes.json();
+                    
+                    comments.forEach(comment => {
+                        const body = comment.body;
+                        const imgMatch = body.match(/!\[.*?\]\((.*?)\)/); // חיפוש תמונה במארקדאון
+                        
+                        // חישוב אנרגיה
+                        let actionTaken = '';
+                        if (body.includes('מייבש')) { totalJoules += ENERGY_VALUES['מייבש']; actionTaken = 'תליית בגדים'; }
+                        if (body.includes('שקית')) { totalJoules += ENERGY_VALUES['שקית']; actionTaken = 'שקית רב פעמית'; }
+
+                        if (imgMatch) {
+                            actionsHtml += `<div style="margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid #eee;">
+                                <strong>${actionTaken || 'פעולה ללא זיהוי'}</strong><br>
+                                <img src="${imgMatch[1]}" alt="Action Image" style="margin-top:10px;">
+                            </div>`;
+                        }
+                    });
+                } 
+                else if (issue.title.toLowerCase() === 'jawl transfers') {
+                    const commentsRes = await fetch(issue.comments_url);
+                    const comments = await commentsRes.json();
+
+                    comments.forEach(comment => {
+                        const body = comment.body;
+                        const imgMatch = body.match(/!\[.*?\]\((.*?)\)/);
+                        const nameMatch = body.match(/שם:\s*([א-תA-Za-z\s]+)/); // תומך בשמות בעברית ואנגלית
+                        
+                        const personName = nameMatch ? nameMatch[1].trim() : 'אנונימי';
+                        const imgSrc = imgMatch ? imgMatch[1] : null;
+
+                        if (imgSrc) {
+                            if (!transfersData[personName]) {
+                                transfersData[personName] = { count: 0, images: [] };
+                            }
+                            transfersData[personName].count += 1;
+                            transfersData[personName].images.push(imgSrc);
+                        }
+                    });
+                }
+            }
+
+            // רינדור התוצאות ל-HTML
+            document.getElementById('total-joules').innerText = totalJoules.toLocaleString();
+            document.getElementById('actions-content').innerHTML = actionsHtml || '<p>אין עדיין פעולות בחשבון זה.</p>';
+            
+            let transfersHtml = '';
+            if (Object.keys(transfersData).length === 0) {
+                transfersHtml = '<p>אין עדיין העברות (Transfers) בחשבון זה.</p>';
+            } else {
+                for (const [name, data] of Object.entries(transfersData)) {
+                    transfersHtml += `<div class="transfer-group">
+                        <h3>${name} (סך פעולות: ${data.count})</h3>`;
+                    data.images.forEach(img => {
+                        transfersHtml += `<img src="${img}" alt="Transfer from ${name}" style="margin-top:10px;">`;
+                    });
+                    transfersHtml += `</div>`;
+                }
+            }
+            document.getElementById('transfers-content').innerHTML = transfersHtml;
+
+        } catch (error) {
+            console.error(error);
+            alert("הייתה בעיה במשיכת הנתונים. ודא שהריפו פתוח לציבור (Public).");
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('account-view').style.display = 'block';
+        }
+    }
+
+    // הפעלת האתר
+    initHome();
+</script>
+
+</body>
+</html>
