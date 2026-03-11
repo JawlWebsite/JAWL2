@@ -20,18 +20,25 @@
         .back-btn { background: #6c757d; color: white; border: none; padding: 10px 25px; border-radius: 50px; cursor: pointer; margin-bottom: 25px; font-weight: bold; transition: 0.2s; }
         .back-btn:hover { background: #495057; }
         
+        /* אזור האנרגיה */
         .energy-box { background: linear-gradient(135deg, #28a745, #218838); color: white; padding: 25px; border-radius: 12px; text-align: center; margin-bottom: 30px; }
         .energy-total { font-size: 2.2rem; font-weight: 800; margin-bottom: 10px; }
         .energy-details { background: rgba(255,255,255,0.15); padding: 15px; border-radius: 8px; font-size: 1rem; line-height: 1.6; }
+        .energy-details b { color: #fff; text-decoration: underline; }
 
+        /* עמודות תוכן */
         .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
         .column { background: #f8f9fa; padding: 20px; border-radius: 12px; border: 1px solid #e4e6eb; }
         .column h2 { margin-top: 0; color: #0056b3; border-bottom: 3px solid #007bff; padding-bottom: 10px; margin-bottom: 20px; }
         
+        /* תמונות ופריטים */
         .item-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .item-card img { width: 100%; border-radius: 8px; display: block; margin-top: 10px; border: 1px solid #eee; }
+        .item-card strong { color: #333; font-size: 1.1rem; }
         
         .transfer-group { border-right: 5px solid #007bff; padding-right: 15px; margin-bottom: 30px; }
+        .transfer-group h3 { color: #007bff; margin-bottom: 15px; }
+
         .loader { text-align: center; font-size: 1.5rem; padding: 50px; display: none; color: #007bff; }
 
         @media (max-width: 768px) { .main-grid { grid-template-columns: 1fr; } }
@@ -41,7 +48,7 @@
 
 <div class="container">
     <div id="home-view"></div>
-    <div id="loader" class="loader">🔄 טוען נתונים...</div>
+    <div id="loader" class="loader">🔄 טוען נתונים מהריפואים...</div>
 
     <div id="account-view">
         <button class="back-btn" onclick="showHome()">⬅ חזור לרשימה</button>
@@ -67,20 +74,22 @@
 
 <script>
     const GITHUB_USERNAME = "JawlWebsite"; 
+    
+    // ערכים פיזיקליים לחישוב
     const VALS = {
         dryer: { j: 15000000, kwh: 4, name: "מייבש כביסה" },
         bag: { j: 2000000, kwh: 0.5, name: "שקית רב פעמית" }
     };
 
-    // רשימת אייקונים רנדומליים לריפואים חדשים
+    // רשימת אייקונים למשתמשים חדשים
     const RANDOM_ICONS = ["🌿", "☀️", "💧", "🔋", "🌳", "🌎", "🚲", "🏠"];
 
     function getIcon(name) {
         const n = name.toLowerCase();
         if (n.includes('shantupai')) return "👕";
         if (n.includes('avishai')) return "🛍️";
-        // אם זה ריפו חדש, נבחר אייקון לפי האות הראשונה של השם שלו
-        const charCode = name.charCodeAt(0) || 0;
+        // בחירת אייקון רנדומלי קבוע לפי שם הריפו
+        const charCode = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         return RANDOM_ICONS[charCode % RANDOM_ICONS.length];
     }
 
@@ -91,11 +100,12 @@
         loader.style.display = 'block';
 
         try {
+            // משיכת כל הריפואים מהיוזר
             const res = await fetch(`https://api.github.com/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`);
             const repos = await res.json();
 
             repos.forEach(repo => {
-                // לא מציגים את הריפו של האתר עצמו
+                // התעלמות מהריפו של האתר עצמו
                 if (repo.name.toLowerCase().includes('github.io')) return;
 
                 const div = document.createElement('div');
@@ -107,7 +117,8 @@
                 home.appendChild(div);
             });
         } catch (e) {
-            home.innerHTML = "שגיאה בטעינת הנתונים מ-GitHub.";
+            console.error(e);
+            home.innerHTML = "שגיאה בטעינת רשימת החשבונות.";
         } finally {
             loader.style.display = 'none';
         }
@@ -151,9 +162,19 @@
                         if (!c.body) return;
                         const img = extractImg(c.body);
                         let type = "";
-                        if (c.body.includes('מייבש')) { totalJ += VALS.dryer.j; countDryer++; type = VALS.dryer.name; }
-                        else if (c.body.includes('שקית')) { totalJ += VALS.bag.j; countBag++; type = VALS.bag.name; }
-                        if (img) actionsHtml += `<div class="item-card"><strong>📍 ${type || "פעולה"}</strong><img src="${img}"></div>`;
+                        if (c.body.includes('מייבש')) { 
+                            totalJ += VALS.dryer.j; 
+                            countDryer++; 
+                            type = VALS.dryer.name; 
+                        }
+                        else if (c.body.includes('שקית')) { 
+                            totalJ += VALS.bag.j; 
+                            countBag++; 
+                            type = VALS.bag.name; 
+                        }
+                        if (img) {
+                            actionsHtml += `<div class="item-card"><strong>📍 ${type || "פעולה"}</strong><img src="${img}"></div>`;
+                        }
                     });
                 } else if (issue.title.toLowerCase().includes('transfers')) {
                     comments.forEach(c => {
@@ -169,22 +190,30 @@
                 }
             }
 
+            // עדכון UI של חישוב האנרגיה
             document.getElementById('total-joules').innerText = totalJ.toLocaleString();
-            document.getElementById('energy-calc').innerHTML = `${countDryer} פעולות מייבש ו-${countBag} פעולות שקית.`;
-            document.getElementById('actions-content').innerHTML = actionsHtml || "אין פעולות.";
+            
+            let calcHtml = `<b>איך הגענו לזה?</b><br>`;
+            calcHtml += `${countDryer} פעולות מייבש (${VALS.dryer.kwh}kWh כ"א) + ${countBag} פעולות שקית (${VALS.bag.kwh}kWh כ"א).<br>`;
+            calcHtml += `חישוב: (${countDryer} × ${VALS.dryer.j.toLocaleString()}) + (${countBag} × ${VALS.bag.j.toLocaleString()}) ג'אול.`;
+            document.getElementById('energy-calc').innerHTML = calcHtml;
+
+            document.getElementById('actions-content').innerHTML = actionsHtml || "אין עדיין תמונות של פעולות.";
             
             let tHtml = '';
             for (const name in transfersMap) {
-                tHtml += `<div class="transfer-group"><h3>👤 ${name}</h3>`;
+                tHtml += `<div class="transfer-group"><h3>👤 ${name} (${transfersMap[name].length} תמונות)</h3>`;
                 transfersMap[name].forEach(src => tHtml += `<div class="item-card"><img src="${src}"></div>`);
                 tHtml += `</div>`;
             }
-            document.getElementById('transfers-content').innerHTML = tHtml || "אין העברות.";
+            document.getElementById('transfers-content').innerHTML = tHtml || "אין עדיין העברות.";
             
             document.getElementById('repo-title').innerText = displayName;
             document.getElementById('account-view').style.display = 'block';
+
         } catch (e) {
-            alert("שגיאה בטעינת החשבון.");
+            console.error(e);
+            alert("שגיאה בטעינת הנתונים. ודא שהריפואים ציבוריים.");
         } finally {
             loader.style.display = 'none';
         }
@@ -192,6 +221,5 @@
 
     initHome();
 </script>
-
 </body>
 </html>
